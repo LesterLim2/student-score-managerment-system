@@ -3,7 +3,7 @@ before you begin be sure to download these things
 https://www.atlassian.com/git/tutorials/install-git - follow this tutorial and download git from this page. without git, you would not be able to reflect your code on the main website
 https://sqlitebrowser.org/ - this is an app that allows you to see .db files. .db stands for database, and as the name implies, stores all information related to this project
 About git:
-tbc
+tbc.
 About sqlite3:
 You all do not need to care about database, i have created helper functions so that you can pull out information without interacting with sqlite
 these functions are:
