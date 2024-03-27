@@ -7,17 +7,15 @@ import sqlite3
 #execute many data = c.executemany() execute all data = c.executeall() c.executeone
 #types of datatypes NULL(something that dosent exist yet,placeholder)
 #update particulars c.execute("""UPDATE (table) SET")
+#data types (IMPORTANT)
 #integer.numbers
 #real(float)
 #test(str)
 #blob(bytes)
 #fetch specific things i.e print entire table based on one input
 #data types (IMPORTANT)
-connection = sqlite3.connect("student particulars.db")
+connection = sqlite3.connect("student_particulars.db")
 cursor = connection.cursor()
-#use this function for sorting, give it various filters and it will sort by grade/year/grades for au.(this is not done yet)
-#this is applicable for both students and teachers. students: you will want to see mean/median/sd(maybe dont implement this) based on specifc grade or gpa by semester or total gpa
-#applicable databses
 
 digit_to_studentyear = {1:"Freshman"}
 check_to_info = {1 : "full_name"}
@@ -120,13 +118,13 @@ def check_particulars(id_check):
         print("1.Check current particulars")
         print("2.Return to main menu")
         particular_check = int(input("what do you want to do"))
-        if particular_check is 1: 
+        if particular_check == 1: 
             temp = getrecords("student_particulars",id_check,0)
             year_initialisation = temp[2]
             print(f"Student Classification: {int_to_class[year_initialisation]})")
-            print(f"Current Year: {int_to_year[(year_initialisation // 2)]}{int_to_semester[((year_initialisation + 2)% 2)]}")
+            print(f"Current Year: {int_to_year[(year_initialisation // 2)]}{int_to_semester[((year_initialisation + 2) % 2)]}")
             print(f"")
-        elif particular_check is 2:
+        elif particular_check == 2:
             main_menu_student(id_check)
 
 
@@ -236,5 +234,78 @@ def getrecords(database,id,datatype):
 #use this function for sorting, give it various filters and it will sort by grade/year/grades for au.(this is not done yet)
 #this is applicable for both students and teachers. students: you will want to see mean/median/sd(maybe dont implement this) based on specifc grade or gpa by semester or total gpa
 #applicable databses
-# check_particulars("U2323911F")
-user_authentication()
+# user_authentication()
+
+grade_to_value = {"A+": 5.0, "A": 5.0, "A-": 4.5, "B+": 4.0, "B": 3.5, "B-": 3.0, "C+": 2.5, "C": 2.0, "D+": 1.5, "D": 1.0, "F": 0.0}
+
+#developer tools, stream line table editting process
+int_to_moduletype = {1 : "General Engineering", 2 : "Civil Engineering", 3 : "ICC"}
+def new_module():
+    module = input("type in your module").upper()
+    weightage = int(input("type in your weightage"))
+    cursor.execute("INSERT INTO module_to_weightage VALUES (?,?)",(module,weightage))
+    connection.commit()
+    connection.close()
+    return False
+
+def grade_adder():
+    while True:
+        id = input("enter your id")
+        cursor.execute("SELECT id FROM student_particulars WHERE id = ?",(id,))
+        id_check = cursor.fetchone()
+        if id_check is not None:
+            if id == id_check[0]:
+                print("pog")
+                break
+        elif id != id_check:
+            print("incorrect id")
+    while True:
+        module = input("input your module")
+        cursor.execute("SELECT module FROM module_to_weightage WHERE module = ?",(module,))
+        module_check = cursor.fetchone()
+        if module == module_check[0]:
+            cursor.execute("SELECT module FROM student_grades WHERE module = ?",(module,))
+            module_check2 = cursor.fetchone()
+            if module_check2 is not None:
+                print("module is already present")
+                continue
+            else:
+                break
+        elif module != module_check[0]:
+            print("module not in database")
+        elif module == "stop".upper():
+            break
+    while True:
+        grade = input("what is your grade").upper()
+        if grade in grade_to_value:
+            print("pog")
+            break     
+        if grade == "stop".upper():
+            break
+        else:
+            print("enter correct grade")
+    while True:
+        semester = input("what is the semester")
+        if semester.isdigit():
+            semester = int(semester)
+            if semester > 8 or semester < 1:
+                print("input a value from 1 to 8")
+                continue
+            else:
+                break
+        if semester == "stop".upper():
+            break
+        else:
+            print("please enter a digit")
+            continue   
+    try:
+        cursor.execute("INSERT INTO student_grades VALUES (?,?,?,?)",(id,module,grade,semester))
+    except Exception as e: 
+        print(e)      
+    finally:
+        print("data editted succesfully")
+        connection.commit()
+        connection.close()
+# grade_adder("U2323911F")
+
+grade_adder()
