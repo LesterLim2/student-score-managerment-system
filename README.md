@@ -2,6 +2,7 @@ Hi guys welcome to the github of the student score management, our final project
 
 before you begin be sure to download these things
 https://www.atlassian.com/git/tutorials/install-git - follow this tutorial and download git from this page. without git, you would not be able to reflect your code on the main website
+
 https://sqlitebrowser.org/ - this is an app that allows you to see .db files. .db stands for database, and as the name implies, stores all information related to this project
 
 About git:
