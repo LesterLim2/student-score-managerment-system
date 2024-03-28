@@ -31,13 +31,12 @@ def check_id():
             print("nothing here")
 
 def update_particulars(id_check):
-    cursor.execute("SELECT * FROM student_particulars WHERE Id = ?",(id_check,))
-    edit_version = cursor.fetchone()
     while True:
+        cursor.execute("SELECT * FROM student_particulars WHERE Id = ?",(id_check,))
+        edit_version = cursor.fetchone()
         if edit_version:
             edit_version = list(edit_version)
             update_particulars_2(edit_version,id_check)
-            break
 
 def update_particulars_2(edit_version,id_check): #needs to be editted
     while True:
@@ -96,6 +95,9 @@ def main_menu_student(id_check):
         if student_menu == 1:
             check_particulars(id_check)
             return False
+        if student_menu == 2:
+            gpa_menu(id_check)
+            return False
         if student_menu == 3:
             password_editor(id_check)
             return False
@@ -107,6 +109,116 @@ def main_menu_student(id_check):
             break
         else:
             print("Please select a proper input")
+
+#menu for checking gpa, you can check one semester,or your cap. you can filter by grade and (idk if i will implement this) check mean median standard derivation for everything, student accesing of scores is RESTRICTED
+#only teachers are able to details for students
+select_to_sem = {1 : 'Y1S1', 2 : "Y1S2", 3 : "Y2S1", 4 : "Y2S2", 5 : "Y3S1", 6 : "Y3S2", 7 : "Y4S1", 8 : "Y4S2"}
+grade_to_value = {"A+": 5.0, "A": 5.0, "A-": 4.5, "B+": 4.0, "B": 3.5, "B-": 3.0, "C+": 2.5, "C": 2.0, "D+": 1.5, "D": 1.0, "F": 0.0}
+gpa_to_classification = {1 : "have failed", 2 : "have failed", 3 : "have failed", 4 : "have passed", 5 : "have passed", 6 : "are third class", 7 : "are second class lower", 8 : "are second class upper", 9 : "are first class honors", 10 :"are first class honors"}
+
+
+def gpa_menu(id_check):
+    while True:
+        print("you are currently at the menu for chacking gpa")
+        gpa_men = input("1. check current gpa 2.check gpa by semester 3.see statistics per module/gpa")
+        if gpa_men.isdigit():
+            gpa_men = int(gpa_men)
+        elif gpa_men.isdigit() != True:
+            print("input must be an integer")
+        if gpa_men == 1:
+            gpa_all(id_check)
+        if gpa_men == 2:
+            gpa_sem(id_check)
+
+def gpa_all(id_check):
+    total_grade = 0
+    total_au = 0
+    cursor.execute("SELECT module,grade FROM student_grades WHERE id = ?",(id_check,))
+    grades = cursor.fetchall()
+    for grade in range(len(grades)):
+        if grades[grade][1] == 'NULL':
+            break
+        else:
+            t_grade,t_au = gpa_calculator(grades[grade],1)
+            total_grade += t_grade
+            total_au += t_au
+    total_gpa = round(total_grade / total_au,2)
+    gpa_message(total_gpa,id_check)
+
+def gpa_message(total_gpa,id_check):
+    gpa_classification = int(total_gpa // 0.5) 
+    cursor.execute("SELECT school FROM student_particulars WHERE id =?",(id_check,))
+    year_check = cursor.fetchone()
+    print(year_check)
+    if year_check == "NBS":
+        gpa_to_classification[6] = "have passed with merit"   
+    print(f"your gpa is {total_gpa} and you {gpa_to_classification[gpa_classification]}")
+    main_menu_student(id_check)
+
+def gpa_sem(id_check):
+    while True:
+        print("youre at the menu for selecting gpa by semester")
+        sem_select = input("Select which semester you wish to find")
+        if sem_select.isdigit():
+            sem_select = int(sem_select)
+        elif sem_select == "stop".upper():
+            main_menu_student()
+        elif sem_select.isdigit() != True:
+            print("input must be an integer")
+            continue
+        cursor.execute("SELECT module,grade FROM student_grades WHERE id = ? AND semester = ?",(id_check,sem_select))
+        grades = cursor.fetchall()
+        if sem_select > 8:
+            print("semester does not exist in database")
+            continue
+        if grades is not None:
+            total_gpa = gpa_calculator(grades,0)
+            print(f"your grades for {select_to_sem[sem_select]} is {total_gpa}")
+            main_menu_student(id_check)
+            break
+    
+#problem with infintie loop     
+        
+
+#pussy way of doing things
+# def gpa_calculator(grades):
+#     total_au = float(0)
+#     total_grade = float(0)
+#     for module,grade in grades:
+#         total_au += mod_to_au[module]
+#         total_grade += grade_to_value[grade] * mod_to_au[module]
+#     print(total_au)
+#     print(total_grade)
+#     total_gpa = round(total_grade/total_au,2)
+#     print(total_gpa)
+
+def gpa_calculator(grades,all_or_sem):
+    counter = 0
+    au = []
+    total_grade = 0
+    total_au = 0 
+    if all_or_sem == 1:
+        # print(grades)
+        cursor.execute("SELECT au FROM module_to_weightage WHERE module = ?",(grades[0],))
+        temp = cursor.fetchone()
+        au.append(temp[0])
+        au = list(temp)
+        total_au = au[0]
+        total_grade = grade_to_value[grades[1]] * total_au
+        return total_grade,total_au  
+    elif all_or_sem == 0:
+        for grade in range(len(grades)):
+            cursor.execute("SELECT au FROM module_to_weightage WHERE module = ? ",(grades[grade][0],))
+            temp = cursor.fetchone()
+            au.append(temp[0])
+        for gpa in range(len(au)):
+            grade = grade_to_value[grades[gpa][1]]
+            total_au += au[counter]
+            total_grade += grade * au[counter]
+            counter += 1
+        total_gpa = round((total_grade / total_au),2)
+        return total_gpa
+    
 
 #check particulars (framework done, just need to fill in features)
 int_to_class = {1  : "Freshman", 2 : "Freshman", 3 : "Sophomore", 4 : "Sophomore", 5 : "Junior", 6 : "Junior", 7 : "Senior", 8 : "Senior"}
@@ -263,6 +375,9 @@ def grade_adder():
         module = input("input your module")
         cursor.execute("SELECT module FROM module_to_weightage WHERE module = ?",(module,))
         module_check = cursor.fetchone()
+        if module_check is None:
+            print("module not found in system")
+            continue
         if module == module_check[0]:
             cursor.execute("SELECT module FROM student_grades WHERE module = ?",(module,))
             module_check2 = cursor.fetchone()
@@ -277,10 +392,12 @@ def grade_adder():
             break
     while True:
         grade = input("what is your grade").upper()
-        if grade in grade_to_value:
+        if grade == "null".upper():
+            break
+        elif grade == "stop".upper():
+            break
+        elif grade in grade_to_value:
             print("pog")
-            break     
-        if grade == "stop".upper():
             break
         else:
             print("enter correct grade")
@@ -299,13 +416,23 @@ def grade_adder():
             print("please enter a digit")
             continue   
     try:
-        cursor.execute("INSERT INTO student_grades VALUES (?,?,?,?)",(id,module,grade,semester))
+        if grade != 0:
+            cursor.execute("INSERT INTO student_grades VALUES (?,?,?,?)",(id,module,grade,semester))
+        else:
+            cursor.execute("INSERT INTO student_grades VALUES (?,?,?,?)",(id,module,None,semester))
     except Exception as e: 
         print(e)      
     finally:
         print("data editted succesfully")
         connection.commit()
         connection.close()
-# grade_adder("U2323911F")
 
-grade_adder()
+#this is the place for everything related to teachers
+#this is where sorting,adding,removing students will take place
+#adding and removing students should only be done in their respective schools, i.e only CEE teachers can edit CEE students and vice versa
+#detailed preview of all grades should be done here, students only have restricted access
+#table teacher_particulars (id,name textschool(you will use this for filters when sorting),field_of_expertise integer (0-associate proffesor,1-proffesor,2-head of departmnet),student or teacher integer(as a check if you somehow manage to get in))
+        
+# cursor.execute("INSERT INTO teacher_particulars VALUES (?,?,?,?,?,?)",("123","123","COE"))
+# def main_menu_teacher(id_check)
+user_authentication()
