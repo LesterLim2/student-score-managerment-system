@@ -16,7 +16,6 @@ import sqlite3
 #data types (IMPORTANT)
 connection = sqlite3.connect("student_particulars.db")
 cursor = connection.cursor()
-
 digit_to_studentyear = {1:"Freshman"}
 check_to_info = {1 : "full_name"}
 def check_id():
@@ -70,6 +69,9 @@ def user_authentication():
                 break
             else:
                 print("Id not found in database, please input correct id")
+    if person_type == 1234:
+        developer_menu()
+        return False
     while True:
         password_input = input("please enter your password ")
         cursor.execute("""SELECT * FROM password WHERE id = ?""",(id_check,))
@@ -131,18 +133,16 @@ def gpa_menu(id_check):
             gpa_sem(id_check)
 
 def gpa_all(id_check):
-    total_grade = 0
-    total_au = 0
-    cursor.execute("SELECT module,grade FROM student_grades WHERE id = ?",(id_check,))
+    cursor.execute("""SELECT module_to_weightage.au,grade_to_gpa.gpa
+               FROM student_grades 
+               INNER JOIN module_to_weightage ON student_grades.module = module_to_weightage.module
+               INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
+               WHERE id = ? """,(id_check,))
     grades = cursor.fetchall()
-    for grade in range(len(grades)):
-        if grades[grade][1] == 'NULL':
-            break
-        else:
-            t_grade,t_au = gpa_calculator(grades[grade],1)
-            total_grade += t_grade
-            total_au += t_au
-    total_gpa = round(total_grade / total_au,2)
+    grades_final = [list(grade) for grade in grades]
+    total_au = sum(map(lambda x : x[0],grades_final))
+    total_grades = sum(map(lambda x : x[0] * x[1],grades_final)) 
+    total_gpa = round((total_grades / total_au),2)
     gpa_message(total_gpa,id_check)
 
 def gpa_message(total_gpa,id_check):
@@ -154,6 +154,7 @@ def gpa_message(total_gpa,id_check):
         gpa_to_classification[6] = "have passed with merit"   
     print(f"your gpa is {total_gpa} and you {gpa_to_classification[gpa_classification]}")
     main_menu_student(id_check)
+
 
 def gpa_sem(id_check):
     while True:
@@ -176,50 +177,24 @@ def gpa_sem(id_check):
             print(f"your grades for {select_to_sem[sem_select]} is {total_gpa}")
             main_menu_student(id_check)
             break
-    
-#problem with infintie loop     
-        
 
-#pussy way of doing things
-# def gpa_calculator(grades):
-#     total_au = float(0)
-#     total_grade = float(0)
-#     for module,grade in grades:
-#         total_au += mod_to_au[module]
-#         total_grade += grade_to_value[grade] * mod_to_au[module]
-#     print(total_au)
-#     print(total_grade)
-#     total_gpa = round(total_grade/total_au,2)
-#     print(total_gpa)
-
-def gpa_calculator(grades,all_or_sem):
+def gpa_calculator(grades): #change this later
     counter = 0
     au = []
     total_grade = 0
     total_au = 0 
-    if all_or_sem == 1:
-        # print(grades)
-        cursor.execute("SELECT au FROM module_to_weightage WHERE module = ?",(grades[0],))
+    for grade in range(len(grades)):
+        cursor.execute("SELECT au FROM module_to_weightage WHERE module = ? ",(grades[grade][0],))
         temp = cursor.fetchone()
         au.append(temp[0])
-        au = list(temp)
-        total_au = au[0]
-        total_grade = grade_to_value[grades[1]] * total_au
-        return total_grade,total_au  
-    elif all_or_sem == 0:
-        for grade in range(len(grades)):
-            cursor.execute("SELECT au FROM module_to_weightage WHERE module = ? ",(grades[grade][0],))
-            temp = cursor.fetchone()
-            au.append(temp[0])
-        for gpa in range(len(au)):
-            grade = grade_to_value[grades[gpa][1]]
-            total_au += au[counter]
-            total_grade += grade * au[counter]
-            counter += 1
-        total_gpa = round((total_grade / total_au),2)
-        return total_gpa
+    for gpa in range(len(au)):
+        grade = grade_to_value[grades[gpa][1]]
+        total_au += au[counter]
+        total_grade += grade * au[counter]
+        counter += 1
+    total_gpa = round((total_grade / total_au),2)
+    return total_gpa
     
-
 #check particulars (framework done, just need to fill in features)
 int_to_class = {1  : "Freshman", 2 : "Freshman", 3 : "Sophomore", 4 : "Sophomore", 5 : "Junior", 6 : "Junior", 7 : "Senior", 8 : "Senior"}
 int_to_semester = {1 : "S1", 0 : "S2"}
@@ -351,14 +326,31 @@ def getrecords(database,id,datatype):
 grade_to_value = {"A+": 5.0, "A": 5.0, "A-": 4.5, "B+": 4.0, "B": 3.5, "B-": 3.0, "C+": 2.5, "C": 2.0, "D+": 1.5, "D": 1.0, "F": 0.0}
 
 #developer tools, stream line table editting process
+def developer_menu():
+    print("you are at the menu for developers only")
+    print("1. add new module")
+    print("2. add new grade")
+    dev_input = int(input("what do you want to do"))
+    if dev_input == 1:
+        print("module should be in upper case (IMPORTANT) 2. weightage needs to be an integer")
+        module = input("type in your new module").upper()
+        weightage = int(input("type in your weightage"))
+        new_module(module,weightage)
+    elif dev_input == 2:
+        grade_adder()
+        
 int_to_moduletype = {1 : "General Engineering", 2 : "Civil Engineering", 3 : "ICC"}
-def new_module():
-    module = input("type in your module").upper()
-    weightage = int(input("type in your weightage"))
-    cursor.execute("INSERT INTO module_to_weightage VALUES (?,?)",(module,weightage))
-    connection.commit()
-    connection.close()
-    return False
+def new_module(module,weightage):
+    try:
+        cursor.execute("INSERT INTO module_to_weightage VALUES (?,?)",(module,weightage))
+    except Exception as e:
+        print(e)
+        developer_menu()
+    finally:
+        connection.commit()
+        print("data successfully edited")
+        connection.close()
+    developer_menu()
 
 def grade_adder():
     while True:
@@ -379,13 +371,13 @@ def grade_adder():
             print("module not found in system")
             continue
         if module == module_check[0]:
-            cursor.execute("SELECT module FROM student_grades WHERE module = ?",(module,))
+            cursor.execute("SELECT module FROM student_grades WHERE id = ?",(id_check,))
             module_check2 = cursor.fetchone()
-            if module_check2 is not None:
-                print("module is already present")
-                continue
-            else:
+            if module_check2 is None:
                 break
+            else:
+                print("grade already present in database")
+                continue
         elif module != module_check[0]:
             print("module not in database")
         elif module == "stop".upper():
@@ -427,6 +419,7 @@ def grade_adder():
         connection.commit()
         connection.close()
 
+# cursor.execute("INSERT INTO student_particulars VALUES (?,?,?,?,?,?)",("U90312312F","Pos Mans",2,"COE","Civil Engineering",0))
 #this is the place for everything related to teachers
 #this is where sorting,adding,removing students will take place
 #adding and removing students should only be done in their respective schools, i.e only CEE teachers can edit CEE students and vice versa
