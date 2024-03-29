@@ -138,10 +138,10 @@ def gpa_all(id_check):
                INNER JOIN module_to_weightage ON student_grades.module = module_to_weightage.module
                INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
                WHERE id = ? """,(id_check,))
-    grades = cursor.fetchall()
-    grades_final = [list(grade) for grade in grades]
+    grades = cursor.fetchall() #list of tuples
+    grades_final = [list(grade) for grade in grades] #list of lists
     total_au = sum(map(lambda x : x[0],grades_final))
-    total_grades = sum(map(lambda x : x[0] * x[1],grades_final)) 
+    total_grades = sum(map(lambda x : x[0] * x[1],grades_final))  
     total_gpa = round((total_grades / total_au),2)
     gpa_message(total_gpa,id_check)
 
@@ -371,7 +371,7 @@ def grade_adder():
             print("module not found in system")
             continue
         if module == module_check[0]:
-            cursor.execute("SELECT module FROM student_grades WHERE id = ?",(id_check,))
+            cursor.execute("SELECT module FROM student_grades WHERE id = ?",(id,))
             module_check2 = cursor.fetchone()
             if module_check2 is None:
                 break
@@ -424,8 +424,94 @@ def grade_adder():
 #this is where sorting,adding,removing students will take place
 #adding and removing students should only be done in their respective schools, i.e only CEE teachers can edit CEE students and vice versa
 #detailed preview of all grades should be done here, students only have restricted access
-#table teacher_particulars (id,name textschool(you will use this for filters when sorting),field_of_expertise integer (0-associate proffesor,1-proffesor,2-head of departmnet),student or teacher integer(as a check if you somehow manage to get in))
+#table teacher_particulars (id,name text school(you will use this for filters when sorting) text,field_of_expertise integer (0-associate proffesor,1-proffesor,2-head of departmnet),student or teacher integer(as a check if you somehow manage to get in))
         
-# cursor.execute("INSERT INTO teacher_particulars VALUES (?,?,?,?,?,?)",("123","123","COE"))
-# def main_menu_teacher(id_check)
-user_authentication()
+#this is the place for everything related to statistics for STUDENTS ONLY, this includes checking total gpa percentile. checking mean,median and standard derivation
+def statistics_menu(id_check):
+    while True:
+        print("you are now at the menu for checking statistics")
+        print("1. Check gpa percentile")
+        print("2 Check specific module by semester")
+        stat_input = input("What do you want to do? ")
+        if stat_input.isdigit():
+            stat_input = int(stat_input)
+        else:
+            print("Enter valid input")
+        if stat_input == 2:
+            mod_check(id_check)
+            return 
+
+def mod_check(id_check):
+     while True:
+        sem_input = input("Select which semester you want to check ")
+        if sem_input.isdigit():
+            sem_input = int(sem_input)
+            if sem_input > 8 or sem_input < 1:
+                print("enter valid semester")
+        else:
+            print("enter valid input")
+        cursor.execute("SELECT module,grade FROM student_grades WHERE id = ? AND semester = ? AND grade IS NOT NULL",(id_check,sem_input))
+        modules = cursor.fetchall()
+        print(modules)
+        break
+     while True:
+        if modules == []:
+            print("Semester has not beem completed yet")
+            continue
+        else:
+            print("here are the available modules")
+            for counter,module in enumerate(modules):
+                print(f"{counter + 1}. {module[0]}")
+            mod_input = int(input("which module do you want to check"))
+            if mod_input > len(modules) or mod_input < 1:
+                print("invalid module")
+            else:
+                stat_calc_menu(modules[mod_input][0],id_check)
+                break
+
+def stat_calc_menu(module,id_check):
+    x = mean_calc(module,id_check)
+    y = median_calc(module,id_check)
+    print(x)
+    print(y)
+
+def fetch_grades(module,id_check):
+    cursor.execute("""SELECT grade_to_gpa.gpa FROM student_grades
+                      INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
+                      WHERE module = ?
+                      ORDER BY grade_to_gpa.gpa ASC""",(module,))
+    grades_temp = cursor.fetchall() #fetching all available module scores for particular module
+    grades_all = [list(grade) for grade in grades_temp]
+    cursor.execute("""SELECT grade_to_gpa.gpa FROM student_grades
+                      INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
+                      WHERE module = ? AND id = ?""",(module,id_check))
+    grades_user= cursor.fetchone() #fetching users score
+    return grades_user[0],grades_all
+
+def mean_calc(module,id_check):
+    temp = fetch_grades(module,id_check)
+    grades_all = temp[1] #list of lists with one index of all grades in module
+    mean = round((sum(map(lambda x : x[0],grades_all)) / len(grades_all)),2)
+    percentage_temp = round((temp[0] / mean),2)
+    if percentage_temp > 1:
+        percentage = int((percentage_temp - 1) * 100)
+    elif percentage_temp < 1:
+        percentage = int((1 - percentage_temp) * 100)
+    else:
+        percentage = 0
+    return mean,percentage
+
+def median_calc(module,id_check):
+    temp = fetch_grades(module,id_check)
+    grades_temp = temp[1]
+    grades_all = []
+    for grade in grades_temp: #convert everything into a flat list
+        for item in grade:
+            grades_all.append(item)
+    if len(grades_all) // 2 == 1:
+        median = grades_all[(len(grades_all) // 2 )]
+    else:
+        median = round((grades_all[(len(grades_all) // 2 -1)] + grades_all[(len(grades_all) // 2 )]) /  2.2)
+    return median
+    
+stat_calc_menu("CV1011","U2323911F")
