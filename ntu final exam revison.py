@@ -1,4 +1,5 @@
 import sqlite3
+import statistics
 #sqlite nomenclature:
 #cursor is needed for everthing
 #create table cursor.excute(CREATE TABLE *name of table*(table_row_name,datatype,...))
@@ -125,12 +126,15 @@ def gpa_menu(id_check):
         gpa_men = input("1. check current gpa 2.check gpa by semester 3.see statistics per module/gpa")
         if gpa_men.isdigit():
             gpa_men = int(gpa_men)
-        elif gpa_men.isdigit() != True:
-            print("input must be an integer")
-        if gpa_men == 1:
-            gpa_all(id_check)
-        if gpa_men == 2:
-            gpa_sem(id_check)
+            if gpa_men == 1:
+                gpa_all(id_check)
+            elif gpa_men == 2:
+                gpa_sem(id_check)
+            else:
+                print("invalid input")
+                continue
+        else:
+            print("gpa must be a digit")
 
 def gpa_all(id_check):
     cursor.execute("""SELECT module_to_weightage.au,grade_to_gpa.gpa
@@ -435,15 +439,19 @@ def statistics_menu(id_check):
         stat_input = input("What do you want to do? ")
         if stat_input.isdigit():
             stat_input = int(stat_input)
-        else:
-            print("Enter valid input")
         if stat_input == 2:
             mod_check(id_check)
-            return 
+            break
+        elif stat_input == 3:
+            main_menu_student(id_check)
+            break
 
 def mod_check(id_check):
      while True:
-        sem_input = input("Select which semester you want to check ")
+        sem_input = input("Select which semester you want to check ").upper()
+        if sem_input == "STOP":
+            main_menu_student(id_check)
+            break
         if sem_input.isdigit():
             sem_input = int(sem_input)
             if sem_input > 8 or sem_input < 1:
@@ -468,13 +476,35 @@ def mod_check(id_check):
             else:
                 stat_calc_menu(modules[mod_input][0],id_check)
                 break
+value_to_grade = {
+    0: 'F',  1: 'F',  2: 'D',  3: 'D+',  4: 'C',  5: 'C+', 6: 'B-', 7: 'B',  8: 'B+', 9: 'A-',10: 'A'
+                }
+print(value_to_grade[3.0 // 0.5])
 
 def stat_calc_menu(module,id_check):
-    x = mean_calc(module,id_check)
-    y = median_calc(module,id_check)
-    print(x)
-    print(y)
-
+    mean , percentage = mean_calc(module,id_check)
+    median , grades_user = median_calc(module,id_check)
+    stan_dev = sd_calc(module,id_check)
+    print(f"Your grade for {module} is {value_to_grade[grades_user // 0.5]}")
+    print(f"here are the course statistics \n Mean: {value_to_grade[mean // 0.5]} \n Median: {value_to_grade[median // 0.5]} \n Standard derivation {stan_dev}")
+    print(f"you are {percentage[0]}% {percentage[1]} then the mean of course {module} ")
+    print("do you want to")
+    while True:
+        stat_input = input("1. Look at statistics for other modules 2. Return to main menu")
+        if stat_input.isdigit():
+            stat_input = int(stat_input)
+            if stat_input == 1:
+                mod_check(id_check)
+                break
+            elif stat_input == 2:
+                print("Returning to main menu")
+                main_menu_student(id_check)
+                break
+            else:
+                print("Enter valid input")
+        else:
+            print("input must be a number")
+            
 def fetch_grades(module,id_check):
     cursor.execute("""SELECT grade_to_gpa.gpa FROM student_grades
                       INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
@@ -494,9 +524,9 @@ def mean_calc(module,id_check):
     mean = round((sum(map(lambda x : x[0],grades_all)) / len(grades_all)),2)
     percentage_temp = round((temp[0] / mean),2)
     if percentage_temp > 1:
-        percentage = int((percentage_temp - 1) * 100)
+        percentage = [int((percentage_temp - 1) * 100),"higher"]
     elif percentage_temp < 1:
-        percentage = int((1 - percentage_temp) * 100)
+        percentage = [int((1 - percentage_temp) * 100),"lower"]
     else:
         percentage = 0
     return mean,percentage
@@ -504,6 +534,7 @@ def mean_calc(module,id_check):
 def median_calc(module,id_check):
     temp = fetch_grades(module,id_check)
     grades_temp = temp[1]
+    grades_user = temp[0]
     grades_all = []
     for grade in grades_temp: #convert everything into a flat list
         for item in grade:
@@ -512,6 +543,14 @@ def median_calc(module,id_check):
         median = grades_all[(len(grades_all) // 2 )]
     else:
         median = round((grades_all[(len(grades_all) // 2 -1)] + grades_all[(len(grades_all) // 2 )]) /  2.2)
-    return median
-    
+    return median,grades_user
+
+def sd_calc(module,id_check):
+    temp = fetch_grades(module,id_check)
+    grades_temp = temp[1]
+    grades_all = []
+    list(map(lambda x : grades_all.append(x[0]),grades_temp))
+    stan_dev = round(statistics.stdev(grades_all),2)
+    return stan_dev
+
 stat_calc_menu("CV1011","U2323911F")
