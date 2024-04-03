@@ -19,48 +19,6 @@ connection = sqlite3.connect("student_particulars.db")
 cursor = connection.cursor()
 digit_to_studentyear = {1:"Freshman"}
 check_to_info = {1 : "full_name"}
-
-def check_id():
-    while True:
-        id_check = input("what is your id")
-        cursor.execute("SELECT * FROM student_particulars WHERE Id = ?",(id_check,))
-        particulars = cursor.fetchone()
-        if particulars:
-            print(f"your particulars are: id {particulars[0]} Full name {particulars[1]} email {particulars[2]} student year {particulars[3]}")
-            break
-        else:
-            print("nothing here")
-
-def update_particulars(id_check):
-    while True:
-        cursor.execute("SELECT * FROM student_particulars WHERE Id = ?",(id_check,))
-        edit_version = cursor.fetchone()
-        if edit_version:
-            edit_version = list(edit_version)
-            update_particulars_2(edit_version,id_check)
-
-def update_particulars_2(edit_version,id_check): #needs to be editted
-    while True:
-        print(f"your particulars are: id {edit_version[0]} Full name {edit_version[1]} email {edit_version[2]} student year {edit_version[3]}")
-        edit_checker = int(input("what do you want to change 1.name, 5. stop editing"))
-        if edit_checker != 5:
-            update_info = input(f"enter your new {check_to_info[edit_checker]}")
-        if 0 < edit_checker < 4:
-            edit_version[edit_checker] = update_info
-        if edit_checker == 5:
-            print(f"here are your final details {edit_version}")
-            final_check = int(input("are you fine with the changes? 1. Yes, 2. No "))
-            if final_check == 2:
-                continue
-            elif final_check == 1:
-                break
-    cursor.execute("UPDATE student_particulars SET full_name = ? WHERE Id = ?",(edit_version[1],id_check))
-    connection.commit()
-    print("Changes successfully executed")
-    main_menu_student(id_check)
-    return False
-
-value_to_prof = {0 : "Associdate proffesor" ,1 : "Professor",3 : "Head of department"}
 def user_authenthication():
     layout = [
         [sg.Text("Select type"), sg.Radio("Student","staff_or_student",default = True,key = "-student-"), sg.Radio("teacher","staff_or_student", key = "-teacher-")],
@@ -95,7 +53,7 @@ def user_authenthication():
                 window["id_error"].update("ERROR id not found in database")
             elif pass_check:
                 window["id_error"].update("")
-                if id_data[0] == id_check and pass_check[0] == password:
+                if id_data[0] == id_check and pass_check[1] == password:
                     window["authenticated"].update(f"Welcome {id_data[1]}")
                     window.close()
                     if is_student:
@@ -111,21 +69,22 @@ def user_authenthication():
                             window["authenticated"].update(f"please enter your new password")
                 else:
                     window["id_error"].update("Incorrect password")
-        
+
 def main_menu_student(id_check):
     cursor.execute("SELECT full_name FROM student_particulars WHERE id = ?",(id_check,))
     name = cursor.fetchone()
     layout = [
         [sg.Text(f"Welcome {name[0]}, You are at the menu meant for students")],
         [sg.Text("1. Check student particulars"),sg.Button("Access",key = 1)],
-        [sg.Text("2. Check past and present gpa"),sg.Button("Access")],
+        [sg.Text("2. Check past and present gpa"),sg.Button("Access", key = 2)],
+        [sg.Text("3. Change password"),sg.Button("Access",key = 3)],
         [sg.Button("Logout")]
     ]
     window = sg.Window("Main menu for students",layout)
     while True:
         event, value = window.read()
-        if event == "Logout" or sg.WINDOW_CLOSED:
-            sg.popup("Goodbye!")
+        if event == "Logout" or event == sg.WINDOW_CLOSED:
+            window.close()
             break
         if event == 1:
             window.close()
@@ -137,12 +96,76 @@ def main_menu_student(id_check):
             break
         if event == 3:
             window.close()
-            password_editor(id_check)
+            new_pass(id_check,1)
             break
-        if event == 4:
+        
+
+#this is the place where all updating of particulars take place
+int_to_class = {1  : "Freshman", 2 : "Freshman", 3 : "Sophomore", 4 : "Sophomore", 5 : "Junior", 6 : "Junior", 7 : "Senior", 8 : "Senior"}
+int_to_semester = {1 : "S1", 0 : "S2"}
+int_to_year = {0 : "Y1", 1 : "Y1", 2 : "Y2", 3 :"Y3", 4 : "Y4"}
+
+def check_particulars(id_check):
+    cursor.execute("SELECT * FROm student_particulars WHERE id = ?",(id_check,))
+    particulars= cursor.fetchone()
+    year = particulars[2]
+    print(year)
+    layout = [
+        [sg.Text("You are at the menu for checking particulars")],
+        [sg.Text("Here are you partciulars")],
+        [sg.Text(f"Id {particulars[0]}", text_color = "black")],
+        [sg.Text(f" Full Name {particulars[1]}", text_color = "black"), sg.Button("Change",key = "-change_name-")],
+        [sg.Text(f"Current student type {int_to_class[year]}",text_color = "black") ],
+        [sg.Text(f"Current Year: {int_to_year[year // 2]}{int_to_semester[(year + 2) % 2]}",text_color= "black")],
+        [sg.Text("",key = "updater")],
+        [sg.Button("Go Back",key = "-go_back-"),sg.Button("Logout",key = "-logout-")]
+    ]
+    window = sg.Window("Particulars checker",layout)
+    while True:
+        event,values = window.read()
+        if event == "-go_back-" or event == "-logout-" or event == sg.WINDOW_CLOSED:
             window.close()
-            update_particulars(id_check)
+            if event == "-go_back-":
+                main_menu_student(id_check)
             break
+        elif event == "-change_name-":
+            window.close()
+            change_particulars(id_check)
+            break
+
+def change_particulars(id_check):
+    layout = [
+        [sg.Text("Type in your new name"),sg.Input("",key = "-input_field-")],
+        [sg.Button("OK",key = "-ok-"),sg.Button("Go Back",key = "-go_back-") ,sg.Button("Logout",key = "-cancel-")],
+        [sg.Text("",key = "-updater-",text_color = "red")]
+    ]       
+    window  = sg.Window("Particulars changer",layout)
+    while True:
+        event,values = window.read()
+        if event == "-cancel-" or event == sg.WINDOW_CLOSED:
+            window.close()
+            break
+        elif event == "-go_back-":
+            window.close()
+            check_particulars(id_check)
+            break
+        elif event == "-ok-":
+            window["-updater-"].update("")
+            if values["-input_field-"] == "":
+                window["-updater-"].update("ERROR please input your changed name")
+            else: #if possible find out how to change color for specific part of text
+                cursor.execute("UPDATE student_particulars SET full_name = ? WHERE id = ?",(values["-input_field-"],id_check))
+                temp = sg.popup_ok_cancel(f"your changed name is {values["-input_field-"]} are you fine with your changes",title = "confirmation")
+                if temp == "OK":
+                    connection.commit()
+                    window["-updater-"].update("Changes succesfully implemented",text_color = "black")
+                else:
+                    connection.rollback()
+                    window["-updater-"].update("Changes succesfully reverted",text_color = "black")
+
+value_to_prof = {0 : "Associdate proffesor" ,1 : "Professor",3 : "Head of department"}
+
+
 
 #menu for checking gpa, you can check one semester,or your cap. you can filter by grade and (idk if i will implement this) check mean median standard derivation for everything, student accesing of scores is RESTRICTED
 #only teachers are able to details for students
@@ -218,29 +241,10 @@ def gpa_sem(id_check):
             break
 
 #check particulars (framework done, just need to fill in features)
-int_to_class = {1  : "Freshman", 2 : "Freshman", 3 : "Sophomore", 4 : "Sophomore", 5 : "Junior", 6 : "Junior", 7 : "Senior", 8 : "Senior"}
-int_to_semester = {1 : "S1", 0 : "S2"}
-int_to_year = {0 : "Y1", 1 : "Y1", 2 : "Y2", 3 :"Y3", 4 : "Y4"}
-def check_particulars(id_check):
-    while True:
-        print("You're at the menu for checking particulars")
-        print("1.Check current particulars")
-        print("2.Return to main menu")
-        particular_check = int(input("what do you want to do"))
-        if particular_check == 1: 
-            temp = getrecords("student_particulars",id_check,0)
-            year_initialisation = temp[2]
-            print(f"Student Classification: {int_to_class[year_initialisation]})")
-            print(f"Current Year: {int_to_year[(year_initialisation // 2)]}{int_to_semester[((year_initialisation + 2) % 2)]}")
-            print(f"")
-            break
-        elif particular_check == 2:
-            main_menu_student(id_check)
-            break
 
 
 #password editor functions(done)
-def new_pass(id_check):
+def new_pass(id_check,menu_type):
     layout = [
         [sg.Text("You are now at the menu for creating new passwords")],
         [sg.Text("The requirements are 1.length must be greater then 9 2.password must contain at least one digit 3.password must contain at least one upper case letter")],
@@ -255,7 +259,10 @@ def new_pass(id_check):
         window["-confirm_check-"].update("", text_color = "red")
         if event == "Exit":
             window.close()
-            user_authenthication()
+            if menu_type == 0:
+                user_authenthication()
+            elif menu_type == 1:
+                main_menu_student(id_check)
             break
         elif event == sg.WINDOW_CLOSED:
             break
@@ -276,11 +283,10 @@ def new_pass(id_check):
                     if popup == "OK":
                         connection.commit()
                         window.close()
-                        return True
                     elif popup == "Cancel":
                         connection.rollback()
                         window["-confirm_check-"].update("Password changes reverted", text_color = "black")
-                if pass_final[0] is False:
+                elif pass_final[0] is False:
                     temp = "Error, password failed checks, the following changes you need to make are: "
                     counter = 0
                     for index,element in enumerate(pass_final[1]):
@@ -290,52 +296,6 @@ def new_pass(id_check):
                             counter += 1
                             temp += f"{counter}. {element}"
                     window["-confirm_check-"].update(temp, text_color = "black")
-
-def password_editor(id_check):
-    print("You're at the menu of editting passwords")
-    print("1. Reset your password")
-    print("2. Go back to main menu")
-    password_menu = int(input("what do you want to do? "))
-    while True:
-        if password_menu == 1:
-            cursor.execute("""SELECT * FROM password WHERE id = ?""",(id_check,))
-            actual_pass = cursor.fetchone()
-            break
-        elif password_menu == 2:
-            main_menu_student(id_check)
-            break
-    while True:
-        pass_check = input("type in your password")
-        if pass_check == actual_pass[1]:
-            new_pass = input("print in your new password")
-            if password_checker(new_pass):
-                password_editor_2(id_check,new_pass)
-                return False
-            else:
-                wrong_pass = int(input("\n1. Do you want to quit or 2. try again")) == 1
-                if wrong_pass:
-                    main_menu_student(id_check)
-                    return False
-                else:
-                    continue           
-        else:
-            print("incorrect password")
-            continue
-
-def password_editor_2(id_check,new_pass):
-    while True:
-        print(f"do you really want to change your password? new password is {new_pass}")
-        final_pass = int(input("1. Yes 2. No "))
-        if final_pass == 1:
-            cursor.execute("""UPDATE password SET password = ? WHERE id = ?""",(new_pass,id_check))
-            connection.commit()
-            print('changes executed succesfully')
-            main_menu_student(id_check)
-            return False
-        elif final_pass == 2:
-            print("changes reverted")
-            main_menu_student(id_check)
-            return False
 
 def password_checker(password):
     total_check = ["Password must be at least 9 digits ","Password must contain at least one digit","Password must have at least one upper case letter"]
@@ -606,7 +566,6 @@ def sd_calc(module,id_check):
     list(map(lambda x : grades_all.append(x[0]),grades_temp))
     stan_dev = round(statistics.stdev(grades_all),2)
     return stan_dev
-<<<<<<< HEAD
 
 #this is the place for everything related to teachers
 #this is where sorting,adding,removing students will take place
@@ -620,34 +579,3 @@ user_authenthication()
 
     
 
-=======
-    
-def main_menu_teacher(id_check):
-    #functionalities create inputs 
-    #see list of all students
-    while True:
-        print("you are at the menu for teachers")
-        teacher_input = input("what do you want to do")
-        if teacher_input.isdigit():
-            teacher_input = int(teacher_input)
-             if teacher_input == 1:
-        else:
-            print("input must be integers")
-            continue
-def main_menu_student(id_check):
-    #functionalities create inputs 
-    #see list of all students
-    while True:
-        print("you are at the menu for students")
-        student_input = input("what do you want to do")
-        if student_input.isdigit():
-            student_input = int(teacher_input)
-             if student_input == 1:
-        else:
-            print("input must be integers")
-            continue
-                     
-            
-        
-stat_calc_menu("CV1011","U2323911F")
->>>>>>> b37b37c746b9eaf97195e7680fc4080a9a1bf515
