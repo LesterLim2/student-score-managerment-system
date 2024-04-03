@@ -1,5 +1,6 @@
 import sqlite3
 import statistics
+import PySimpleGUI as sg
 #sqlite nomenclature:
 #cursor is needed for everthing
 #create table cursor.excute(CREATE TABLE *name of table*(table_row_name,datatype,...))
@@ -14,11 +15,11 @@ import statistics
 #test(str)
 #blob(bytes)
 #fetch specific things i.e print entire table based on one input
-#data types (IMPORTANT)
 connection = sqlite3.connect("student_particulars.db")
 cursor = connection.cursor()
 digit_to_studentyear = {1:"Freshman"}
 check_to_info = {1 : "full_name"}
+
 def check_id():
     while True:
         id_check = input("what is your id")
@@ -58,67 +59,95 @@ def update_particulars_2(edit_version,id_check): #needs to be editted
     print("Changes successfully executed")
     main_menu_student(id_check)
     return False
-    
-def user_authentication():
-    person_type = int(input("Are you 1. student or 2. teacher"))
-    if person_type == 1:
-        while True:
-            id_check = input("type in your id").upper()
-            cursor.execute("SELECT * FROM student_particulars WHERE id = ?",(id_check,))
-            result = cursor.fetchone()
-            if result:
-                break
-            else:
-                print("Id not found in database, please input correct id")
-    if person_type == 1234:
-        developer_menu()
-        return False
-    while True:
-        password_input = input("please enter your password ")
-        cursor.execute("""SELECT * FROM password WHERE id = ?""",(id_check,))
-        password_check = cursor.fetchone()
-        if password_check[1] == password_input:
-            cursor.execute("SELECT * FROM student_particulars WHERE id = ?",(id_check,))
-            stu_name = cursor.fetchone()
-            print(f"Welcome {stu_name[1]}")
-            main_menu_student(id_check)
-            break
-        else: 
-            print("incorrect password")
-            continue
 
-def main_menu_student(id_check):
-    print("1. Check student particulars")
-    print("2. Check past and present gpa")
-    print("3. Edit password")
-    print("4. Check student particulars")
-    print("0. Quit the program")
+value_to_prof = {0 : "Associdate proffesor" ,1 : "Professor",3 : "Head of department"}
+def user_authenthication():
+    layout = [
+        [sg.Text("Select type"), sg.Radio("Student","staff_or_student",default = True,key = "-student-"), sg.Radio("teacher","staff_or_student", key = "-teacher-")],
+        [sg.Text("id"),sg.Input(key = "-id-")],
+        [sg.Text("password"),sg.Input(key = "-password-")],
+        [sg.Button("Login"), sg.Button("Exit")],
+        [sg.Text("", key = 'id_error', text_color = "red")],
+        [sg.Text("", key = "authenticated", text_color = "black")]
+    ]
+    window = sg.Window("User Authentication", layout)
     while True:
-        student_menu = int(input("what do you want to do"))
-        if student_menu == 1:
-            check_particulars(id_check)
-            return False
-        if student_menu == 2:
-            gpa_menu(id_check)
-            return False
-        if student_menu == 3:
-            password_editor(id_check)
-            return False
-        if student_menu == 4:
-            update_particulars(id_check)
-            return False
-        if student_menu == 5:
-            print("Thank you for using our program")
+        event, value = window.read()
+        if event == sg.WINDOW_CLOSED or event == "Exit":
             break
-        else:
-            print("Please select a proper input")
+        if event == "Login":
+            is_student = False
+            is_teacher = False
+            id_check = value["-id-"]
+            password = value["-password-"]
+            if value["-student-"]:
+                cursor.execute("SELECT id,full_name FROM student_particulars WHERE id = ?",(id_check,))
+                is_student = True
+            if value["-teacher-"]:
+                cursor.execute("SELECT id,name FROM teacher_particulars WHERE id = ?",(id_check,))
+                is_teacher = True
+            id_data = cursor.fetchone()
+            cursor.execute("SELECT id,password FROM password WHERE id = ?",(id_check,))
+            pass_check= cursor.fetchone()
+            if id_check == "":
+                 window["id_error"].update("Please input an id")
+            elif id_data is None:
+                window["id_error"].update("ERROR id not found in database")
+            elif pass_check:
+                window["id_error"].update("")
+                if id_data[0] == id_check and pass_check[0] == password:
+                    window["authenticated"].update(f"Welcome {id_data[1]}")
+                    window.close()
+                    if is_student:
+                        main_menu_student(id_check)
+                    break
+                elif pass_check[1] is None:
+                    popup = sg.popup_ok_cancel("ERROR, no password assigned to id. Do you want to create a new password")
+                    if popup == "OK":
+                        window.hide()
+                        temp = new_pass(id_check)
+                        if temp:
+                            window.un_hide()
+                            window["authenticated"].update(f"please enter your new password")
+                else:
+                    window["id_error"].update("Incorrect password")
+        
+def main_menu_student(id_check):
+    cursor.execute("SELECT full_name FROM student_particulars WHERE id = ?",(id_check,))
+    name = cursor.fetchone()
+    layout = [
+        [sg.Text(f"Welcome {name[0]}, You are at the menu meant for students")],
+        [sg.Text("1. Check student particulars"),sg.Button("Access",key = 1)],
+        [sg.Text("2. Check past and present gpa"),sg.Button("Access")],
+        [sg.Button("Logout")]
+    ]
+    window = sg.Window("Main menu for students",layout)
+    while True:
+        event, value = window.read()
+        if event == "Logout" or sg.WINDOW_CLOSED:
+            sg.popup("Goodbye!")
+            break
+        if event == 1:
+            window.close()
+            check_particulars(id_check)
+            break
+        if event == 2:
+            window.close()
+            gpa_menu(id_check)
+            break
+        if event == 3:
+            window.close()
+            password_editor(id_check)
+            break
+        if event == 4:
+            window.close()
+            update_particulars(id_check)
+            break
 
 #menu for checking gpa, you can check one semester,or your cap. you can filter by grade and (idk if i will implement this) check mean median standard derivation for everything, student accesing of scores is RESTRICTED
 #only teachers are able to details for students
 select_to_sem = {1 : 'Y1S1', 2 : "Y1S2", 3 : "Y2S1", 4 : "Y2S2", 5 : "Y3S1", 6 : "Y3S2", 7 : "Y4S1", 8 : "Y4S2"}
-grade_to_value = {"A+": 5.0, "A": 5.0, "A-": 4.5, "B+": 4.0, "B": 3.5, "B-": 3.0, "C+": 2.5, "C": 2.0, "D+": 1.5, "D": 1.0, "F": 0.0}
 gpa_to_classification = {1 : "have failed", 2 : "have failed", 3 : "have failed", 4 : "have passed", 5 : "have passed", 6 : "are third class", 7 : "are second class lower", 8 : "are second class upper", 9 : "are first class honors", 10 :"are first class honors"}
-
 
 def gpa_menu(id_check):
     while True:
@@ -127,7 +156,7 @@ def gpa_menu(id_check):
         if gpa_men.isdigit():
             gpa_men = int(gpa_men)
             if gpa_men == 1:
-                gpa_all(id_check)
+                gpa_calculator(id_check,0)
             elif gpa_men == 2:
                 gpa_sem(id_check)
             else:
@@ -136,29 +165,37 @@ def gpa_menu(id_check):
         else:
             print("gpa must be a digit")
 
-def gpa_all(id_check):
-    cursor.execute("""SELECT module_to_weightage.au,grade_to_gpa.gpa
+def gpa_calculator(id_check,all_or_sem): #add additional inputs in if stat
+    if all_or_sem == 0:
+        cursor.execute("""SELECT module_to_weightage.au,grade_to_gpa.gpa
+                FROM student_grades 
+                INNER JOIN module_to_weightage ON student_grades.module = module_to_weightage.module
+                INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
+                WHERE id = ? """,(id_check,))
+        message = "Your total gpa"
+    else:
+        cursor.execute("""SELECT module_to_weightage.au,grade_to_gpa.gpa
                FROM student_grades 
                INNER JOIN module_to_weightage ON student_grades.module = module_to_weightage.module
                INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
-               WHERE id = ? """,(id_check,))
+               WHERE id = ? AND semester = ?""",(id_check,all_or_sem))
+        message = f"Your gpa for {select_to_sem[all_or_sem]}"
     grades = cursor.fetchall() #list of tuples
+    print(grades)
     grades_final = [list(grade) for grade in grades] #list of lists
     total_au = sum(map(lambda x : x[0],grades_final))
     total_grades = sum(map(lambda x : x[0] * x[1],grades_final))  
     total_gpa = round((total_grades / total_au),2)
-    gpa_message(total_gpa,id_check)
+    gpa_message(total_gpa,id_check,message)
 
-def gpa_message(total_gpa,id_check):
+def gpa_message(total_gpa,id_check,message): #edit this with year_to_sem
     gpa_classification = int(total_gpa // 0.5) 
     cursor.execute("SELECT school FROM student_particulars WHERE id =?",(id_check,))
     year_check = cursor.fetchone()
-    print(year_check)
-    if year_check == "NBS":
+    if year_check[0] == "NBS":
         gpa_to_classification[6] = "have passed with merit"   
-    print(f"your gpa is {total_gpa} and you {gpa_to_classification[gpa_classification]}")
+    print(f"{message} is {total_gpa} and you {gpa_to_classification[gpa_classification]}")
     main_menu_student(id_check)
-
 
 def gpa_sem(id_check):
     while True:
@@ -173,32 +210,13 @@ def gpa_sem(id_check):
             continue
         cursor.execute("SELECT module,grade FROM student_grades WHERE id = ? AND semester = ?",(id_check,sem_select))
         grades = cursor.fetchall()
-        if sem_select > 8:
+        if sem_select > 8 or sem_select < 1:
             print("semester does not exist in database")
             continue
-        if grades is not None:
-            total_gpa = gpa_calculator(grades,0)
-            print(f"your grades for {select_to_sem[sem_select]} is {total_gpa}")
-            main_menu_student(id_check)
+        elif grades is not None:
+            gpa_calculator(id_check,sem_select)
             break
 
-def gpa_calculator(grades): #change this later
-    counter = 0
-    au = []
-    total_grade = 0
-    total_au = 0 
-    for grade in range(len(grades)):
-        cursor.execute("SELECT au FROM module_to_weightage WHERE module = ? ",(grades[grade][0],))
-        temp = cursor.fetchone()
-        au.append(temp[0])
-    for gpa in range(len(au)):
-        grade = grade_to_value[grades[gpa][1]]
-        total_au += au[counter]
-        total_grade += grade * au[counter]
-        counter += 1
-    total_gpa = round((total_grade / total_au),2)
-    return total_gpa
-    
 #check particulars (framework done, just need to fill in features)
 int_to_class = {1  : "Freshman", 2 : "Freshman", 3 : "Sophomore", 4 : "Sophomore", 5 : "Junior", 6 : "Junior", 7 : "Senior", 8 : "Senior"}
 int_to_semester = {1 : "S1", 0 : "S2"}
@@ -215,11 +233,64 @@ def check_particulars(id_check):
             print(f"Student Classification: {int_to_class[year_initialisation]})")
             print(f"Current Year: {int_to_year[(year_initialisation // 2)]}{int_to_semester[((year_initialisation + 2) % 2)]}")
             print(f"")
+            break
         elif particular_check == 2:
             main_menu_student(id_check)
+            break
 
 
 #password editor functions(done)
+def new_pass(id_check):
+    layout = [
+        [sg.Text("You are now at the menu for creating new passwords")],
+        [sg.Text("The requirements are 1.length must be greater then 9 2.password must contain at least one digit 3.password must contain at least one upper case letter")],
+        [sg.Text("enter your new password"),sg.Input(key = "-new_pass-")],
+        [sg.Text("Reenter your password"),sg.Input(key = "-pass_check-")],
+        [sg.Button("Confirm"),sg.Button("Exit")],
+        [sg.Text("",key = "-confirm_check-",text_color = "red")]
+    ]
+    window = sg.Window("new password",layout)
+    while True:
+        event, value = window.read()
+        window["-confirm_check-"].update("", text_color = "red")
+        if event == "Exit":
+            window.close()
+            user_authenthication()
+            break
+        elif event == sg.WINDOW_CLOSED:
+            break
+        elif event == "Confirm":
+            new_pass = value["-new_pass-"]
+            pass_check = value["-pass_check-"]
+            if new_pass == "" and pass_check == "":
+                window["-confirm_check-"].update("please input something")
+            elif new_pass== "":
+                window["-confirm_check-"].update("please enter a password")
+            elif pass_check == "":
+                window["-confirm_check-"].update("please authenticate your password")
+            else:
+                pass_final = password_checker(new_pass)
+                if pass_final[0]:
+                    cursor.execute("UPDATE password SET password = ? WHERE id = ?",(new_pass,id_check))
+                    popup = sg.popup_ok_cancel("All checks completed, are you sure you want to use this password?")
+                    if popup == "OK":
+                        connection.commit()
+                        window.close()
+                        return True
+                    elif popup == "Cancel":
+                        connection.rollback()
+                        window["-confirm_check-"].update("Password changes reverted", text_color = "black")
+                if pass_final[0] is False:
+                    temp = "Error, password failed checks, the following changes you need to make are: "
+                    counter = 0
+                    for index,element in enumerate(pass_final[1]):
+                        if pass_final[1][index] is True:
+                            continue
+                        else:
+                            counter += 1
+                            temp += f"{counter}. {element}"
+                    window["-confirm_check-"].update(temp, text_color = "black")
+
 def password_editor(id_check):
     print("You're at the menu of editting passwords")
     print("1. Reset your password")
@@ -250,6 +321,7 @@ def password_editor(id_check):
         else:
             print("incorrect password")
             continue
+
 def password_editor_2(id_check,new_pass):
     while True:
         print(f"do you really want to change your password? new password is {new_pass}")
@@ -276,17 +348,10 @@ def password_checker(password):
     if upper_check:
         total_check[2] = True
     if total_check[0] is True and total_check[1] is True and total_check[2] is True:
-        print("all conditions passed")
-        return True
+        return True,total_check
     else:
-        counter = 0
-        for check in total_check:
-            if check is True:
-                pass
-            else:
-                counter += 1
-                print(f"{counter}. {check}", end = '')
-        return False
+        return False,total_check
+    
 #student particulars : id(primary key) full_name semester school major student_or_teacher(0 = teacher 1 = student)
 #passwords id(primary key) password
 #get records from a specific database select id (primary key) to get specific output datatype in these databses(follow formatting exactly after counter)
@@ -294,6 +359,7 @@ def password_checker(password):
 #if parameter id = 0 then everything is printed out
 #in parameter datatype here are the options (follow this exactly) 0. print out everything 1. name  2.semester 3.school 4.major 5.student_or_teacher(you most likely wont need this)
 #you can either get one value or get many values
+    
 int_to_database = {1 : "student_particulars"}
 def getrecords(database,id,datatype):
     try:
@@ -322,13 +388,8 @@ def getrecords(database,id,datatype):
         print("error")
     finally:
         connection.close()
-#use this function for sorting, give it various filters and it will sort by grade/year/grades for au.(this is not done yet)
-#this is applicable for both students and teachers. students: you will want to see mean/median/sd(maybe dont implement this) based on specifc grade or gpa by semester or total gpa
-#applicable databses
-# user_authentication()
 
 grade_to_value = {"A+": 5.0, "A": 5.0, "A-": 4.5, "B+": 4.0, "B": 3.5, "B-": 3.0, "C+": 2.5, "C": 2.0, "D+": 1.5, "D": 1.0, "F": 0.0}
-
 #developer tools, stream line table editting process
 def developer_menu():
     print("you are at the menu for developers only")
@@ -419,18 +480,11 @@ def grade_adder():
     except Exception as e: 
         print(e)      
     finally:
-        print("data editted succesfully")
         connection.commit()
-        connection.close()
+        print("data editted succesfully")
 
-# cursor.execute("INSERT INTO student_particulars VALUES (?,?,?,?,?,?)",("U90312312F","Pos Mans",2,"COE","Civil Engineering",0))
-#this is the place for everything related to teachers
-#this is where sorting,adding,removing students will take place
-#adding and removing students should only be done in their respective schools, i.e only CEE teachers can edit CEE students and vice versa
-#detailed preview of all grades should be done here, students only have restricted access
-#table teacher_particulars (id,name text school(you will use this for filters when sorting) text,field_of_expertise integer (0-associate proffesor,1-proffesor,2-head of departmnet),student or teacher integer(as a check if you somehow manage to get in))
-        
 #this is the place for everything related to statistics for STUDENTS ONLY, this includes checking total gpa percentile. checking mean,median and standard derivation
+#statistics checker(half done (need gpa))
 def statistics_menu(id_check):
     while True:
         print("you are now at the menu for checking statistics")
@@ -488,7 +542,7 @@ def stat_calc_menu(module,id_check):
     print(f"Your grade for {module} is {value_to_grade[grades_user // 0.5]}")
     print(f"here are the course statistics \n Mean: {value_to_grade[mean // 0.5]} \n Median: {value_to_grade[median // 0.5]} \n Standard derivation {stan_dev}")
     print(f"you are {percentage[0]}% {percentage[1]} then the mean of course {module} ")
-    print("do you want to")
+    print("Do you want to")
     while True:
         stat_input = input("1. Look at statistics for other modules 2. Return to main menu")
         if stat_input.isdigit():
@@ -510,7 +564,7 @@ def fetch_grades(module,id_check):
                       INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
                       WHERE module = ?
                       ORDER BY grade_to_gpa.gpa ASC""",(module,))
-    grades_temp = cursor.fetchall() #fetching all available module scores for particular module
+    grades_temp = cursor.fetchall() #fetching all available user scores for particular module
     grades_all = [list(grade) for grade in grades_temp]
     cursor.execute("""SELECT grade_to_gpa.gpa FROM student_grades
                       INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
@@ -553,4 +607,15 @@ def sd_calc(module,id_check):
     stan_dev = round(statistics.stdev(grades_all),2)
     return stan_dev
 
-stat_calc_menu("CV1011","U2323911F")
+#this is the place for everything related to teachers
+#this is where sorting,adding,removing students will take place
+#adding and removing students should only be done in their respective schools, i.e only CEE teachers can edit CEE students and vice versa
+#detailed preview of all grades should be done here, students only have restricted access
+#table teacher_particulars (id,name text school(you will use this for filters when sorting) text,field_of_expertise integer (0-associate proffesor,1-proffesor,2-head of departmnet),student or teacher integer(as a check if you somehow manage to get in))
+#test teacher(use this to check teacher functionality) id:123 name :test name school : CEE field_of_expertise Civil Engineering professor type
+value_to_postion = {0 : "Associate proffessor", 1 : "Professor", 2 : "HOD" }
+
+user_authenthication()
+
+    
+
