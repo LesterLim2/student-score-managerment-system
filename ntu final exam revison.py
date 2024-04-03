@@ -606,6 +606,7 @@ def sd_calc(module,id_check):
     list(map(lambda x : grades_all.append(x[0]),grades_temp))
     stan_dev = round(statistics.stdev(grades_all),2)
     return stan_dev
+<<<<<<< HEAD
 
 #this is the place for everything related to teachers
 #this is where sorting,adding,removing students will take place
@@ -619,3 +620,34 @@ user_authenthication()
 
     
 
+=======
+    
+def main_menu_teacher(id_check):
+    #functionalities create inputs 
+    #see list of all students
+    while True:
+        print("you are at the menu for teachers")
+        teacher_input = input("what do you want to do")
+        if teacher_input.isdigit():
+            teacher_input = int(teacher_input)
+             if teacher_input == 1:
+        else:
+            print("input must be integers")
+            continue
+def main_menu_student(id_check):
+    #functionalities create inputs 
+    #see list of all students
+    while True:
+        print("you are at the menu for students")
+        student_input = input("what do you want to do")
+        if student_input.isdigit():
+            student_input = int(teacher_input)
+             if student_input == 1:
+        else:
+            print("input must be integers")
+            continue
+                     
+            
+        
+stat_calc_menu("CV1011","U2323911F")
+>>>>>>> b37b37c746b9eaf97195e7680fc4080a9a1bf515
