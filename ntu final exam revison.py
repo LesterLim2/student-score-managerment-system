@@ -1,6 +1,7 @@
 import sqlite3
 import statistics
 import PySimpleGUI as sg
+import random
 #sqlite nomenclature:
 #cursor is needed for everthing
 #create table cursor.excute(CREATE TABLE *name of table*(table_row_name,datatype,...))
@@ -170,78 +171,71 @@ value_to_prof = {0 : "Associdate proffesor" ,1 : "Professor",3 : "Head of depart
 #menu for checking gpa, you can check one semester,or your cap. you can filter by grade and (idk if i will implement this) check mean median standard derivation for everything, student accesing of scores is RESTRICTED
 #only teachers are able to details for students
 select_to_sem = {1 : 'Y1S1', 2 : "Y1S2", 3 : "Y2S1", 4 : "Y2S2", 5 : "Y3S1", 6 : "Y3S2", 7 : "Y4S1", 8 : "Y4S2"}
-gpa_to_classification = {1 : "have failed", 2 : "have failed", 3 : "have failed", 4 : "have passed", 5 : "have passed", 6 : "are third class", 7 : "are second class lower", 8 : "are second class upper", 9 : "are first class honors", 10 :"are first class honors"}
+gpa_to_classification = {1 : "failed", 2 : "failed", 3 : "failed", 4 : "passed", 5 : "passed", 6 : "third class", 7 : "second class lower", 8 : "second class upper", 9 : "first class honors", 10 :"first class honors"}
 
 def gpa_menu(id_check):
+    cursor.execute("SELECT Max(semester) FROM student_grades WHERE id = ? AND grade IS NOT NULL",("U2323911F",))
+    temp = cursor.fetchall()
+    sem_arr = []
+    for i in range(temp[0][0]):
+        sem_arr.append(f"{int_to_year[(i + 1) // 2]}{int_to_semester[(i + 3) % 2]}")
+    layout = [
+        [sg.Text("You're at the menu for changing gpa")],
+        [sg.Text("Your current gpa (CAP): "),sg.Button("Access", key = "-gpa_all-")],
+        [sg.Text("",key = "gpa_all_val")],
+        [sg.Text("Check gpa for specific semester"),sg.DropDown(sem_arr, key = "-sem_check-"),sg.Button("Check",key = "-check-")],
+        [sg.Text("",key = "-update_sem-",text_color = "red" )],
+        [sg.Button("Exit", key = "-exit-")]
+    ]
+    window = sg.Window("Gpa Menu",layout)
     while True:
-        print("you are currently at the menu for chacking gpa")
-        gpa_men = input("1. check current gpa 2.check gpa by semester 3.see statistics per module/gpa")
-        if gpa_men.isdigit():
-            gpa_men = int(gpa_men)
-            if gpa_men == 1:
-                gpa_calculator(id_check,0)
-            elif gpa_men == 2:
-                gpa_sem(id_check)
+        event,values = window.read()
+        if event == "-exit-" or event == sg.WINDOW_CLOSED:
+            window.close()
+            break
+        elif event == "-check-":
+            window["-update_sem-"].update("")
+            if values["-sem_check-"] == "":
+                window["-update_sem-"].update("Please input a semester to check")
             else:
-                print("invalid input")
-                continue
-        else:
-            print("gpa must be a digit")
+                sem_check = values["-sem_check-"]
+                sem_value = (int(sem_check[1]) - 1) * 2 + int(sem_check[3])
+                gpa_value = gpa_calculator(id_check,sem_value,values["-sem_check-"])
+                window["-update_sem-"].update(gpa_value, text_color = "black")
+        elif event == "-gpa_all-":
+            window["gpa_all_val"].update("")
+            temp = gpa_calculator(id_check,0,0)
+            window["gpa_all_val"].update(temp,text_color = "black")
 
-def gpa_calculator(id_check,all_or_sem): #add additional inputs in if stat
+def gpa_calculator(id_check,all_or_sem,sem_check): 
+    def gpa_message(total_gpa,id_check,message):
+        gpa_classification = int(total_gpa // 0.5) 
+        cursor.execute("SELECT year_program FROM student_particulars WHERE id =?",(id_check,))
+        year_check = cursor.fetchone()
+        if year_check[0] == 3:
+            gpa_to_classification[6] = "have passed with merit"   
+        final_message = f"{message} {total_gpa} Honors rating: {gpa_to_classification[gpa_classification]}"
+        return final_message
     if all_or_sem == 0:
         cursor.execute("""SELECT module_to_weightage.au,grade_to_gpa.gpa
                 FROM student_grades 
                 INNER JOIN module_to_weightage ON student_grades.module = module_to_weightage.module
                 INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
                 WHERE id = ? """,(id_check,))
-        message = "Your total gpa"
+        message = "CGPA value:"
     else:
         cursor.execute("""SELECT module_to_weightage.au,grade_to_gpa.gpa
                FROM student_grades 
                INNER JOIN module_to_weightage ON student_grades.module = module_to_weightage.module
                INNER JOIN grade_to_gpa ON student_grades.grade = grade_to_gpa.grade
                WHERE id = ? AND semester = ?""",(id_check,all_or_sem))
-        message = f"Your gpa for {select_to_sem[all_or_sem]}"
+        message = f"Gpa for {sem_check} value:"
     grades = cursor.fetchall() #list of tuples
-    print(grades)
     grades_final = [list(grade) for grade in grades] #list of lists
     total_au = sum(map(lambda x : x[0],grades_final))
     total_grades = sum(map(lambda x : x[0] * x[1],grades_final))  
     total_gpa = round((total_grades / total_au),2)
-    gpa_message(total_gpa,id_check,message)
-
-def gpa_message(total_gpa,id_check,message): #edit this with year_to_sem
-    gpa_classification = int(total_gpa // 0.5) 
-    cursor.execute("SELECT school FROM student_particulars WHERE id =?",(id_check,))
-    year_check = cursor.fetchone()
-    if year_check[0] == "NBS":
-        gpa_to_classification[6] = "have passed with merit"   
-    print(f"{message} is {total_gpa} and you {gpa_to_classification[gpa_classification]}")
-    main_menu_student(id_check)
-
-def gpa_sem(id_check):
-    while True:
-        print("youre at the menu for selecting gpa by semester")
-        sem_select = input("Select which semester you wish to find")
-        if sem_select.isdigit():
-            sem_select = int(sem_select)
-        elif sem_select == "stop".upper():
-            main_menu_student()
-        elif sem_select.isdigit() != True:
-            print("input must be an integer")
-            continue
-        cursor.execute("SELECT module,grade FROM student_grades WHERE id = ? AND semester = ?",(id_check,sem_select))
-        grades = cursor.fetchall()
-        if sem_select > 8 or sem_select < 1:
-            print("semester does not exist in database")
-            continue
-        elif grades is not None:
-            gpa_calculator(id_check,sem_select)
-            break
-
-#check particulars (framework done, just need to fill in features)
-
+    return gpa_message(total_gpa,id_check,message)
 
 #password editor functions(done)
 def new_pass(id_check,menu_type):
@@ -495,29 +489,72 @@ value_to_grade = {
                 }
 print(value_to_grade[3.0 // 0.5])
 
-def stat_calc_menu(module,id_check):
-    mean , percentage = mean_calc(module,id_check)
-    median , grades_user = median_calc(module,id_check)
-    stan_dev = sd_calc(module,id_check)
-    print(f"Your grade for {module} is {value_to_grade[grades_user // 0.5]}")
-    print(f"here are the course statistics \n Mean: {value_to_grade[mean // 0.5]} \n Median: {value_to_grade[median // 0.5]} \n Standard derivation {stan_dev}")
-    print(f"you are {percentage[0]}% {percentage[1]} then the mean of course {module} ")
-    print("Do you want to")
+def stat_calc_menu(id_check):
+    cursor.execute("SELECT Max(semester) FROM student_grades WHERE id = ? AND grade IS NOT NULL",("U2323911F",))
+    temp = cursor.fetchall()
+    sem_arr = []
+    for i in range(temp[0][0]):
+        sem_arr.append(i + 1)
+    layout = [
+        [sg.Text("You are at the menu for statistics calculation")],
+        [sg.Text("Select the sem you wish to check"),sg.DropDown(sem_arr,key = "-sem_value-"),sg.Button("Access", key = "-mod_access-")],
+        [sg.Text("",text_color="red",key = "updater")],
+        [sg.Button("Go Back", key = "-go_back-"),sg.Button("Logout",key = "-log_out-")]
+    ]
+    window = sg.Window("statistics menu",layout)
     while True:
-        stat_input = input("1. Look at statistics for other modules 2. Return to main menu")
-        if stat_input.isdigit():
-            stat_input = int(stat_input)
-            if stat_input == 1:
-                mod_check(id_check)
-                break
-            elif stat_input == 2:
-                print("Returning to main menu")
-                main_menu_student(id_check)
-                break
+        event,values = window.read()
+        if event == "-log_out-" or event == sg.WIN_CLOSED:
+            break
+        elif event == "-go_back-":
+            main_menu_student(id_check)
+            break
+        elif event == "-mod_access-":
+            if values["-sem_value-"] == "":
+                window["updater"].update("Please input a semeste")
             else:
-                print("Enter valid input")
-        else:
-            print("input must be a number")
+                cursor.execute("SELECT module FROM student_grades WHERE semester = ? AND id = ?",(values["-sem_value-"],id_check))
+                mod_choices = cursor.fetchall()
+                module_all = []
+                list(map(lambda x : module_all.append(x[0]),mod_choices))
+                window.close()
+                stat_calc_2(id_check,module_all,values["-sem_value-"])
+
+def stat_calc_2(id_check,mod_choices,sem_value):
+    print(sem_value)
+    layout = [
+        [sg.Text(f"What module for semester {sem_value} do you want to check?")],
+        [sg.DropDown(mod_choices,size = 10,key = "-mod_choices-"),sg.Button("Access")],
+        [sg.Text("",key = "-statistics-")],
+        [sg.Text("",key = "-percentage-"),sg.Button("Access graphs of selected module",visible= False, key = "-graphs-")],
+        [sg.Text("",key = "-updater-", text_color = "red")],
+        [sg.Button("Go back to previous page", key = "-back_one-"),sg.Button("Go back to main menu",key = "-back_main-"),sg.Button("Logout")]
+    ]   
+    window = sg.Window(f"Module selections for semester {sem_value}",layout)
+    while True:
+        event,values = window.read()
+        if event == "Logout" or event == sg.WIN_CLOSED:
+            break
+        elif event == "-back_one-":
+            window.close()
+            stat_calc_menu(id_check)
+        elif event == "-back_main-":
+            window.close()
+            main_menu_student(id_check)
+        elif event == "Access":
+            window["-updater-"].update("")
+            if values["-mod_choices-"] == "":
+                window["-updater-"].update("Please select a mod.")
+            else:
+                grades_user,grades_all = fetch_grades(values["-mod_choices-"],id_check)
+                mean,percentage = mean_calc(grades_user,grades_all)
+                median = median_calc(grades_all)
+                stan_dev = sd_calc(grades_all)
+                window["-statistics-"].update(f"Mean : {value_to_grade[mean // 0.5]} median: {value_to_grade[median[0] // 0.5]} standard derivation {stan_dev}")
+                window["-percentage-"].update(f"You are {percentage[0]}{percentage[1]} then the cohort")
+                window["-graphs-"].update(visible = True) 
+        elif event == "-graphs-":
+            print("pog")
             
 def fetch_grades(module,id_check):
     cursor.execute("""SELECT grade_to_gpa.gpa FROM student_grades
@@ -532,50 +569,125 @@ def fetch_grades(module,id_check):
     grades_user= cursor.fetchone() #fetching users score
     return grades_user[0],grades_all
 
-def mean_calc(module,id_check):
-    temp = fetch_grades(module,id_check)
-    grades_all = temp[1] #list of lists with one index of all grades in module
+def mean_calc(grades_user,grades_all): #list of lists with one index of all grades in module
     mean = round((sum(map(lambda x : x[0],grades_all)) / len(grades_all)),2)
-    percentage_temp = round((temp[0] / mean),2)
+    percentage_temp = round((grades_user / mean),2)
     if percentage_temp > 1:
-        percentage = [int((percentage_temp - 1) * 100),"higher"]
+        percentage = [int((percentage_temp - 1) * 100),"% higher"]
     elif percentage_temp < 1:
-        percentage = [int((1 - percentage_temp) * 100),"lower"]
+        percentage = [int((1 - percentage_temp) * 100),"% lower"]
     else:
-        percentage = 0
+        percentage = ["You have the same"," score as the mean"]
     return mean,percentage
 
-def median_calc(module,id_check):
-    temp = fetch_grades(module,id_check)
-    grades_temp = temp[1]
-    grades_user = temp[0]
-    grades_all = []
-    for grade in grades_temp: #convert everything into a flat list
-        for item in grade:
-            grades_all.append(item)
+def median_calc(grades_all):
+    grades_list = []
+    list(map(lambda x :grades_list.append(x[0]),grades_all))
     if len(grades_all) // 2 == 1:
         median = grades_all[(len(grades_all) // 2 )]
     else:
         median = round((grades_all[(len(grades_all) // 2 -1)] + grades_all[(len(grades_all) // 2 )]) /  2.2)
-    return median,grades_user
+    return median
 
-def sd_calc(module,id_check):
-    temp = fetch_grades(module,id_check)
-    grades_temp = temp[1]
-    grades_all = []
-    list(map(lambda x : grades_all.append(x[0]),grades_temp))
-    stan_dev = round(statistics.stdev(grades_all),2)
+def sd_calc(grades_all):
+    grades_list = []
+    list(map(lambda x : grades_list.append(x[0]),grades_all))
+    stan_dev = round(statistics.stdev(grades_list),2)
     return stan_dev
 
 #this is the place for everything related to teachers
-#this is where sorting,adding,removing students will take place
 #adding and removing students should only be done in their respective schools, i.e only CEE teachers can edit CEE students and vice versa
 #detailed preview of all grades should be done here, students only have restricted access
 #table teacher_particulars (id,name text school(you will use this for filters when sorting) text,field_of_expertise integer (0-associate proffesor,1-proffesor,2-head of departmnet),student or teacher integer(as a check if you somehow manage to get in))
 #test teacher(use this to check teacher functionality) id:123 name :test name school : CEE field_of_expertise Civil Engineering professor type
 value_to_postion = {0 : "Associate proffessor", 1 : "Professor", 2 : "HOD" }
 
-user_authenthication()
+
+def main_menu_teacher(id_check):
+    cursor.execute("SELECT id,professor_type FROM teacher_particulars WHERE id = ?",(id_check,))
+    id,prof_type = cursor.fetchone()
+    layout = [
+        [sg.Text(f"You are at the main menu for teachers, Welcome {value_to_prof[prof_type]} {id}")],
+        [sg.Text("1. Add students"),sg.Button("Access", key = "-add_student-")],
+        [sg.Text("2. Remove students"),sg.Button("Access", key = "-remove_student-")],
+        [sg.Button("Logout")]
+    ]
+    window = sg.Window("Professor menu",layout)
+    while True:
+        event,values = window.read()
+        if event == "Logout" or event == sg.WIN_CLOSED:
+            break
+        elif event == "-add_student-":
+            window.close()
+            add_student(id_check)
+        elif event == "-remove_student-":
+            window.close()
+            remove_student(id_check)
+
+gender_list = ["M","F","Other"]
+program_list = [3,4]
+error_to_string = { 0 : "You have not selected a degree", 1 : "You have not selected a name", 2 : "You have no selected a gender", 3 : "You have no selected the program type"}
+error_to_string = ["You have not selected a degree", "You have not selected a name", "You have no selected a gender", "You have no selected the program type"]
+school_to_degree = {"CEE" : ["Civil Engineering","Enviromental Engineering","Maritime Studies"]}
+def add_student(id_check):
+    cursor.execute("SELECT school FROM teacher_particulars WHERE id = ?",(id_check,))
+    school_type = cursor.fetchone()
+    if school_type is None:
+        sg.popup("You do not have permission to enter this menu")
+        return False
+    school_pool = school_to_degree[school_type[0]]
+    layout = [
+        [sg.Text("You are at the menu for adding students")],
+        [sg.Text("Select the major that the new student will be in (limited to your school)"),sg.DropDown(school_pool,key = "-selected_degree-",size = 20)],
+        [sg.Text("Input the new student's name"),sg.Input(key = "-new_name-",size = 15)],
+        [sg.Text("Input the student's gender"),sg.DropDown(gender_list, key = "-gender-"),sg.Text("Input the type of program"),sg.DropDown(program_list, key = "-program_type-")],
+        [sg.Text("",text_color= "red", key = "updater")],
+        [sg.Button("Complete"),sg.Button("Go back to previous menu", key = "-go_back-"),sg.Button("Logout")]     
+    ]
+    window = sg.Window("add students menu",layout)
+    while True:
+        event,values = window.read()
+        if event == "Logout" or event == sg.WINDOW_CLOSED:
+            break
+        elif event == "-go_back-":
+            window.close()
+            main_menu_teacher(id_check)
+        elif event == "Complete":
+            values_arr = [values["-selected_degree-"],values["-new_name-"],values["-gender-"],values["-program_type-"]]
+            string_error = ""
+            window["updater"].update("")
+            counter = 1
+            for index,value in enumerate(values_arr):
+                if value == "":
+                    string_error += f"{counter}. {error_to_string[index]} "
+                    counter += 1
+                else:
+                    pass
+            window["updater"].update(string_error)
+
+            if string_error == "":
+                new_id = "U" + str(random.randint(1000000,9999999)) + chr(random.randint(ord("A"),ord("Z")))
+                popup = sg.popup_ok_cancel(f"Here are the particulars of the new student \n id: {new_id} name {values["-new_name-"]} gender {values["-gender-"]} \n school {school_type[0]}, major {values["-selected_degree-"]}, year programe {values["-program_type-"]}")
+                cursor.execute("INSERT INTO student_particulars VALUES (?,?,?,?,?,?,?,?)",(new_id,values["-new_name-"],1,school_type[0],values["-selected_degree-"],0,values["-program_type-"],values["-gender-"]))
+                if popup == "OK":
+                    connection.commit()
+                    window["updater"].update("Data successfully inserted, press go back to access other functions",text_color = "black")
+                else:
+                    connection.rollback()
+                    window["updater"].update("Data succesfully reverted",text_color = "black")  
+
+def remove_student(id_check):
+    layout = [
+        [sg.Button("Go back",key = "-go_back-"),sg.Button("Logout",key = "-logout-")],
+    ]
+    window = sg.Window("Remove students menu",layout)
+    while True:
+        event, value = window.read()
+        if event == "-logout-" or event == sg.WIN_CLOSED:
+            break
+        elif event == "-go_back-":
+            window.close()
+stat_calc_menu("CV1011","U2323911F")
 
     
 
