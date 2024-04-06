@@ -539,11 +539,14 @@ def remove_student_2(major,id_check):
             window.close()
             remove_student(id_check)
         elif event == "-remove-":
+            # if 1 <= values["-data-"][0] <= len(all_row): #why dosent this work??
             selected_row_index = values["-data-"][0]
             id_check = all_row[selected_row_index][1]
             popup = sg.popup_ok_cancel(f"Are you sure you want to remove {all_row[selected_row_index][2]} id: {id_check} \n THIS PROCESS CANNOT BE REVERTED")
             cursor.execute("DELETE FROM student_particulars WHERE id = ?", (id_check,))
             cursor.execute("DELETE FROM student_grades WHERE id = ? AND grade IS NOT NULL",(id_check,))
+            # else:
+            #     window["-updater-"].update("please select a table",text_color = "red")
             if popup == "OK":
                 connection.commit()
                 window["-updater-"].update("Student successfully removed")
@@ -557,9 +560,43 @@ def remove_student_2(major,id_check):
             else:
                 connection.rollback()
                 window["-updater-"].update("Changes successfully reverted")
-        elif window == "-search-":
-            print("pog")
+        elif event == "-search-":
+            temp = rem_stu_check(window,id_check,all_row)
+
+def rem_stu_check(window,id_check,all_row):
+    popup = sg.popup_get_text("Type in the student you want to check")
+    if popup == "":
+        window["-updater-"].update("Search bar must at least contain one letter", text_color = "red")
+    else:
+        cursor.execute("SELECT id,full_name FROM student_particulars WHERE id = ?",(popup,))
+        stu_check = cursor.fetchone()
+        if stu_check is not None:
+            for i in range(len(all_row)):
+                if stu_check[0] in all_row[i][1]:
+                    selected_row_index = all_row[i][0]
+                    print(selected_row_index)
+            popup_final = sg.popup_ok_cancel(f"Are you sure you want to remove {stu_check[1]} id: {stu_check[1]} \n THIS PROCESS CANNOT BE REVERTED")
+            cursor.execute("DELETE FROM student_particulars WHERE id = ?", (id_check,))
+            cursor.execute("DELETE FROM student_grades WHERE id = ? AND grade IS NOT NULL",(id_check,))
+            if popup_final == "OK":
+                connection.commit()
+                window["-updater-"].update("Student successfully removed")
+                for i in range(len(all_row)): #can be updated for efficency purposes
+                    if all_row[i][0] < selected_row_index:
+                        pass
+                    else:
+                        all_row[i][0] -= 1
+                del all_row[selected_row_index - 1]
+                window["-data-"].update(values = all_row)
+        else:
+            return window["-updater-"].update("Id not found in database")
+    
+def add_module(id_check):
+    cursor.execute("SELECT id FROM teacher_particulars WHERE id = ?",(id_check,))
+    id_check = cursor.fetchone()
+    if id_check is None:
+        sg.popup("You do not have permission to enter this menu")
 # add_student("123")
-remove_student_2("Civil Engineering","123")
+add_module("U2323911F")
 connection.close()
 
