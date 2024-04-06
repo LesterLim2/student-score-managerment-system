@@ -4,13 +4,13 @@ import PySimpleGUI as sg
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import random
-
+sg.theme("DefaultNoMoreNagging")
 connection = sqlite3.connect("student_particulars.db")
 cursor = connection.cursor()
 def user_authenthication():
     layout = [
         [sg.Text("Select type"), sg.Radio("Student","staff_or_student",default = True,key = "-student-"), sg.Radio("teacher","staff_or_student", key = "-teacher-")],
-        [sg.Text("id"),sg.Input(key = "-id-")],
+        [sg.Text("id  "),sg.Input(key = "-id-")],
         [sg.Text("password"),sg.Input(key = "-password-",password_char = "*")],
         [sg.Button("Login"), sg.Button("Exit")],
         [sg.Text("", key = 'id_error', text_color = "red")],
@@ -60,6 +60,7 @@ def user_authenthication():
                             window["authenticated"].update(f"please enter your new password")
                 else:
                     window["id_error"].update("Incorrect password")
+                    
 
 def new_pass(id_check):
     layout = [
@@ -74,13 +75,13 @@ def new_pass(id_check):
     window = sg.Window("new password",layout)
     while True:
         event, value = window.read()
-        window["-confirm_check-"].update("", text_color = "red")
         if event == "Exit":
             window.close()
             return True
         elif event == sg.WINDOW_CLOSED:
             break
         elif event == "Confirm":
+            window["-confirm_check-"].update("", text_color = "red")
             new_pass = value["-new_pass-"]
             pass_check = value["-pass_check-"]
             if new_pass == "" and pass_check == "":
@@ -89,9 +90,11 @@ def new_pass(id_check):
                 window["-confirm_check-"].update("please enter a password")
             elif pass_check == "":
                 window["-confirm_check-"].update("please authenticate your password")
+            elif new_pass != pass_check:
+                window["-confirm_check-"].update("Please ensure both passwords are identical")
             else:
                 pass_final = password_checker(new_pass)
-                if pass_final[0]:
+                if all(pass_final):
                     cursor.execute("UPDATE password SET password = ? WHERE id = ?",(new_pass,id_check))
                     popup = sg.popup_ok_cancel("All checks completed, are you sure you want to use this password?")
                     if popup == "OK":
@@ -101,32 +104,22 @@ def new_pass(id_check):
                     elif popup == "Cancel":
                         connection.rollback()
                         window["-confirm_check-"].update("Password changes reverted", text_color = "black")
-                elif pass_final[0] is False:
+                else:
                     counter = 0
                     temp = "Error, password failed checks, the following changes you need to make are: "
-                    for index,element in enumerate(pass_final[1]):
-                        if pass_final[1][index] is True:
+                    error_message = ["length must be greater then 9 ", "password must contain at least one digit ", "password must contain at least one upper case letter "]
+                    for index,element in enumerate(pass_final):
+                        if pass_final[index]:
                             continue
                         else:
                             counter += 1
-                            temp += f"{counter}. {element}"
+                            temp += f"{counter}. {error_message[element]}"
                     window["-confirm_check-"].update(temp, text_color = "black")
-                    
+
 def password_checker(password):
-    total_check = ["Password must be at least 9 digits ","Password must contain at least one digit","Password must have at least one upper case letter"]
-    if len(password) >= 9:
-        total_check[0] = True
-    digit_check = any(chr.isdigit() for chr in password)
-    if digit_check:
-        total_check[1] = digit_check
-    upper_check = any(chr.isupper() for chr in password)
-    if upper_check:
-        total_check[2] = True
-    if total_check[0] is True and total_check[1] is True and total_check[2] is True:
-        print("all conditions passed")
-        return True,total_check
-    else:
-        return False,total_check
+    total_check = [len(password) > 9,any(chr.isdigit() for chr in password),any(chr.isupper() for chr in password)]
+    return total_check
+                    
     
 def main_menu_student(id_check):
     cursor.execute("SELECT full_name FROM student_particulars WHERE id = ?",(id_check,))
@@ -151,7 +144,8 @@ def main_menu_student(id_check):
             check_particulars(id_check)
             window.un_hide()
         elif event == "-gpa-":
-            print("pog")
+            window.hide()
+            gpa_menu(id_check)
         elif event == "-pass_edit-":
             window.hide()
             temp = new_pass(id_check)
@@ -314,7 +308,7 @@ def stat_calc_menu(id_check):
             break
         elif event == "-mod_access-":
             if values["-sem_value-"] == "":
-                window["updater"].update("Please input a semeste")
+                window["updater"].update("Please input a semester")
             else:
                 cursor.execute("SELECT module FROM student_grades WHERE semester = ? AND id = ?",(values["-sem_value-"],id_check))
                 mod_choices = cursor.fetchall()
@@ -390,13 +384,12 @@ def median_calc(grades_all):
     if len(grades_all) // 2 == 1:
         median = grades_all[(len(grades_all) // 2 )]
     else:
-        median = round((grades_all[(len(grades_all) // 2 -1)] + grades_all[(len(grades_all) // 2 )]) /  2.2)
+        median = round((grades_all[(len(grades_all) // 2 -1)] + grades_all[(len(grades_all) // 2 )]) /  2.2,2)
     return median
 
 value_to_prof = {0 : "associdate proffesor" ,1 : "professor",3 : "head of department"}
 def sd_calc(grades_all):
-    grades_list = []
-    list(map(lambda x : grades_list.append(x[0]),grades_all))
+    grades_list = list(map(lambda x :x[0],grades_all))
     stan_dev = round(statistics.stdev(grades_list),2)
     return stan_dev
 
@@ -461,9 +454,13 @@ def add_student(id_check):
                 else:
                     pass
             window["updater"].update(string_error)
-
             if string_error == "":
-                new_id = "U" + str(random.randint(1000000,9999999)) + chr(random.randint(ord("A"),ord("Z")))
+                while True:
+                    new_id = "U" + str(random.randint(1000000,9999999)) + chr(random.randint(ord("A"),ord("Z")))
+                    cursor.execute("SELECT id FROM student_particulars WHERE id = ?",(new_id,))
+                    check_id = cursor.fetchone()
+                    if check_id is None:
+                        break
                 popup = sg.popup_ok_cancel(f"Here are the particulars of the new student \n id: {new_id} name {values["-new_name-"]} gender {values["-gender-"]} \n school {school_type[0]}, major {values["-selected_degree-"]}, year programe {values["-program_type-"]}")
                 cursor.execute("INSERT INTO student_particulars VALUES (?,?,?,?,?,?,?,?)",(new_id,values["-new_name-"],1,school_type[0],values["-selected_degree-"],0,values["-program_type-"],values["-gender-"]))
                 try:
@@ -503,16 +500,66 @@ def remove_student(id_check):
                 window["-updater-"].update("Please include a major")
             else:
                 window.close()
-                remove_student_2(id_check)
+                remove_student_2(values["-major-"],id_check)
 
-def remove_student_2(id_check):
+def rem_stu_rows(major):
+    cursor.execute("SELECT id,full_name FROM student_particulars WHERE major = ?", (major,))
+    stu_details = cursor.fetchall()
+    all_row = []
+    for index, details in enumerate(stu_details):
+        all_row.append([index + 1,details[0],details[1]])
+    return all_row
+
+def remove_student_2(major,id_check): 
+    all_row = rem_stu_rows(major)
+    heading = ["Row Number","id","Name"]
     layout = [
-        [sg.Text("Here are all available courses")]
+        [sg.Text(f"Here are all available id's for {major} you can edit")],
+        [sg.Table(
+            values =all_row,
+            headings = heading,
+            max_col_width = 25,
+            auto_size_columns = True,
+            justification = "left",
+            num_rows = 15,
+            key = "-data-",
+            expand_x = True,
+            expand_y = True,
+            enable_click_events = True)
+            ],
+        [sg.Text("", key = "-updater-")],
+        [sg.Button("Search id",key = "-search-"),sg.Button("Remove selected row",key = "-remove-"),sg.Button("Go back to previous menu", key = "-go_back-"),sg.Button("Logout")]
     ]
-
-        
-            
-
-user_authenthication()
+    window = sg.Window("og",layout)
+    while True:
+        event,values = window.read()
+        if event == "Logout" or event == sg.WIN_CLOSED:
+            break
+        elif event == "-go_back-":
+            window.close()
+            remove_student(id_check)
+        elif event == "-remove-":
+            selected_row_index = values["-data-"][0]
+            id_check = all_row[selected_row_index][1]
+            popup = sg.popup_ok_cancel(f"Are you sure you want to remove {all_row[selected_row_index][2]} id: {id_check} \n THIS PROCESS CANNOT BE REVERTED")
+            cursor.execute("DELETE FROM student_particulars WHERE id = ?", (id_check,))
+            cursor.execute("DELETE FROM student_grades WHERE id = ? AND grade IS NOT NULL",(id_check,))
+            if popup == "OK":
+                connection.commit()
+                window["-updater-"].update("Student successfully removed")
+                for i in range(len(all_row)): #can be updated for efficency purposes
+                    if all_row[i][0] < selected_row_index + 1:
+                        pass
+                    else:
+                        all_row[i][0] -= 1
+                del all_row[selected_row_index]
+                window["-data-"].update(values = all_row)
+            else:
+                connection.rollback()
+                window["-updater-"].update("Changes successfully reverted")
+        elif window == "-search-":
+            print("pog")
+# add_student("123")
+remove_student_2("Civil Engineering","123")
 connection.close()
 
