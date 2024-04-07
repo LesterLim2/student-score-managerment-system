@@ -574,7 +574,6 @@ def rem_stu_check(window,id_check,all_row):
             for i in range(len(all_row)):
                 if stu_check[0] in all_row[i][1]:
                     selected_row_index = all_row[i][0]
-                    print(selected_row_index)
             popup_final = sg.popup_ok_cancel(f"Are you sure you want to remove {stu_check[1]} id: {stu_check[1]} \n THIS PROCESS CANNOT BE REVERTED")
             cursor.execute("DELETE FROM student_particulars WHERE id = ?", (id_check,))
             cursor.execute("DELETE FROM student_grades WHERE id = ? AND grade IS NOT NULL",(id_check,))
@@ -588,15 +587,78 @@ def rem_stu_check(window,id_check,all_row):
                         all_row[i][0] -= 1
                 del all_row[selected_row_index - 1]
                 window["-data-"].update(values = all_row)
+            else:
+                connection.rollback()
+                window["-updater-"].update("Changes successfully reverted")
         else:
             return window["-updater-"].update("Id not found in database")
-    
+
+#add module function, i should have denested it but overall its done
+mods_to_abbrev = {"Civil Engineering" : "CV", "Environmental Engineering" : "EN", "General Mathematics" : "MH", "General Physics" : "PH", "Common Core" : "CC"}
 def add_module(id_check):
-    cursor.execute("SELECT id FROM teacher_particulars WHERE id = ?",(id_check,))
-    id_check = cursor.fetchone()
-    if id_check is None:
+    cursor.execute("SELECT school FROM teacher_particulars WHERE id = ?",(id_check,))
+    school_type = cursor.fetchone()
+    if school_type is None:
         sg.popup("You do not have permission to enter this menu")
+    drop_list = list(mods_to_abbrev.keys())
+    print(drop_list)
+    layout = [
+        [sg.Text("You are at the menu for creating new modules")],
+        [sg.Text("select the course major"),sg.DropDown(drop_list, key = "-course_type-",default_value= drop_list[0])],
+        [sg.Text("Input the reccomended year to take the course"),sg.DropDown([1,2,3,4], key = "-year_type-")],
+        [sg.Text("Select the AU weightage of the module"),sg.DropDown([1,2,3,4], key = "-au_weightage-")],
+        [sg.Text("Please input the new modules name",visible = False,key = "-course_text-"),sg.Input("",visible = False,size = (7,1),key = "-course_input-")],
+        [sg.Text("",key = "-updater-",visible= False)],
+        [sg.Button("Finalize"),sg.Button("Go back to previous menu", key = "-go_back-"),sg.Button("Logout"),sg.Button("Access",visible = False)]
+    ]
+    window = sg.Window("Add modules",layout)
+    while True:
+        event,values = window.read()
+        if event in (sg.WIN_CLOSED,"Logout"):
+            break
+        elif event in "-go_back-":
+            window.close()
+            main_menu_teacher(id_check)
+        elif event in "Finalize":
+            window["-updater-"].update("",visible = False)
+            window["-course_text-"].update(visible = False)
+            window["-course_input-"].update("",visible = False)
+            window["Access"].update(visible = False)
+            if values["-course_type-"] == "":
+                window["-updater-"].update("Please input a course",visible = True)
+            else:
+                window["-course_text-"].update("Please input the new modules name",visible = True)
+                window["-course_input-"].update(f"{mods_to_abbrev[values["-course_type-"]]}{values["-year_type-"]}",visible = True)
+                window["Access"].update(visible = True)
+        if event in "Access":
+            window["-updater-"].update("")
+            all_checks = [int(values["-course_input-"][2]) == int(values["-year_type-"]),values["-course_input-"][:2] == mods_to_abbrev[values["-course_type-"]],len(values["-course_input-"]) == 6]
+            checks_input = ["Year input must be equal in both boxes","course type must be same as input","new module must be 6 characters in length"]
+            error_check = ""
+            counter = 1
+            for index,element in enumerate(all_checks): #this is needed totally not because idk how to make the year type and course module unchangable
+                if element:
+                    pass
+                else:
+                    error_check += f"{counter}. {checks_input[index]} "
+                    counter += 1
+            window["-updater-"].update(error_check,visible = True)
+            cursor.execute("SELECT module FROM module_to_weightage WHERE module = ? ",(values["-course_input-"],))
+            course_check = cursor.fetchone()
+            if course_check is None and error_check == "":
+                cursor.execute("INSERT INTO module_to_weightage VALUES (?,?)",(values["-course_input-"],values["-au_weightage-"]))
+                popup = sg.popup_ok_cancel(f"Are you sure you want to enter this course to the database? \n course Id: {values["-course_input-"]} \n AU weightage: {values["-au_weightage-"]}")
+                if popup == "OK":
+                    connection.commit()
+                    window["-updater-"].update("Module successfully added into the database")
+                else:
+                    connection.rollback()
+                    window["-updater-"].update("Changes successfully reverted")
+            else:
+                window["-updater-"].update("course id already present in database",visible = True)
+            
+
 # add_student("123")
-add_module("U2323911F")
+add_module("123")
 connection.close()
 
